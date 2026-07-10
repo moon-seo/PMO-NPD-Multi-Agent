@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>풀무원 신제품 아이디어 연구소</title>
+<style>
+  :root {
+    --green-900: #1e5631;
+    --green-700: #2e7d43;
+    --green-500: #6aa84f;
+    --green-300: #a5c964;
+    --green-100: #eef5e3;
+    --cream: #fbf9f2;
+    --paper: #ffffff;
+    --ink: #24331f;
+    --ink-soft: #5f7154;
+    --amber: #f6b93b;
+    --radius: 18px;
+    --shadow: 0 4px 16px rgba(30, 86, 49, 0.10);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background:
+      radial-gradient(1200px 500px at 20% -10%, #e8f2d8 0%, transparent 60%),
+      radial-gradient(900px 400px at 90% 0%, #f3f7e6 0%, transparent 55%),
+      var(--cream);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── 헤더 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 28px;
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid #e4ead6;
+    flex-shrink: 0;
+  }
+  .logo-badge {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--green-900); color: #fff;
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 20px;
+  }
+  header h1 { font-size: 17px; font-weight: 700; }
+  header .sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+  header .demo-tag {
+    margin-left: auto; font-size: 11.5px; font-weight: 600;
+    color: var(--green-700); background: var(--green-100);
+    border: 1px solid #d8e6c2; border-radius: 999px; padding: 5px 12px;
+  }
+
+  /* ── 레이아웃 ──────────────────────────── */
+  main {
+    flex: 1; display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 14px;
+    padding: 16px 28px 20px;
+    max-width: 1200px; width: 100%;
+    margin: 0 auto;
+    min-height: 0;
+    position: relative;
+  }
+
+  /* ── 에이전트 스테이지 ─────────────────── */
+  #stage {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .agent {
+    background: var(--paper);
+    border: 1.5px solid #e7ecdb;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 12px 14px 12px;
+    display: flex; flex-direction: column; align-items: center;
+    position: relative;
+    transition: border-color .4s, box-shadow .4s, transform .4s;
+  }
+  .agent.working {
+    border-color: var(--green-500);
+    box-shadow: 0 6px 22px rgba(106,168,79,0.28);
+    transform: translateY(-3px);
+  }
+  .agent.done { border-color: #cfe3bb; }
+
+  /* 말풍선 */
+  .bubble {
+    width: 100%;
+    min-height: 74px;
+    background: var(--green-100);
+    border: 1.5px solid #dbe8c6;
+    border-radius: 14px;
+    padding: 9px 12px;
+    font-size: 12.5px; line-height: 1.55; color: var(--ink);
+    position: relative;
+    margin-bottom: 14px;
+    opacity: 0.45;
+    transition: opacity .3s, background .3s, border-color .3s;
+    overflow: hidden;
+    display: flex; align-items: center;
+  }
+  .bubble::after {
+    content: ""; position: absolute; bottom: -8px; left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 14px; height: 14px;
+    background: inherit;
+    border-right: 1.5px solid #dbe8c6; border-bottom: 1.5px solid #dbe8c6;
+  }
+  .agent.working .bubble { opacity: 1; background: #f3f9e8; border-color: var(--green-300); }
+  .bubble .idle-text { color: var(--ink-soft); font-style: italic; }
+  .bubble .talk-text b { color: var(--green-900); }
+  .cursor { display: inline-block; width: 2px; height: 1em; background: var(--green-700); vertical-align: -2px; margin-left: 1px; animation: blink .8s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 캐릭터 */
+  .avatar-wrap { position: relative; }
+  .avatar {
+    width: 108px; height: 108px; object-fit: contain;
+    animation: floaty 3.4s ease-in-out infinite;
+  }
+  .agent:nth-child(2) .avatar { animation-delay: -1.1s; }
+  .agent:nth-child(3) .avatar { animation-delay: -2.2s; }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .agent.working .avatar { animation: workbounce .55s ease-in-out infinite; }
+  @keyframes workbounce { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-9px) rotate(1.5deg); } }
+
+  .status-dot {
+    position: absolute; right: 2px; bottom: 8px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #c9d4bd; border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    transition: background .3s;
+  }
+  .agent.working .status-dot { background: var(--amber); animation: pulse 1s infinite; }
+  .agent.done .status-dot { background: var(--green-500); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(246,185,59,.25); } }
+
+  .agent .name { font-weight: 800; font-size: 14.5px; margin-top: 8px; }
+  .agent .role { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+  .status-pill {
+    margin-top: 8px; font-size: 11px; font-weight: 700;
+    padding: 4px 12px; border-radius: 999px;
+    background: #f0f2ea; color: #8a9880;
+    transition: all .3s;
+  }
+  .agent.working .status-pill { background: #fdf3dc; color: #b07d1a; }
+  .agent.done .status-pill { background: var(--green-100); color: var(--green-700); }
+
+  /* ── 채팅 영역 ─────────────────────────── */
+  #chat-panel {
+    background: var(--paper);
+    border: 1.5px solid #e7ecdb;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  #messages {
+    flex: 1; overflow-y: auto;
+    padding: 20px 22px;
+    display: flex; flex-direction: column; gap: 14px;
+    scroll-behavior: smooth;
+  }
+  .msg { max-width: 78%; font-size: 13.5px; line-height: 1.65; }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--green-700); color: #fff;
+    padding: 10px 16px; border-radius: 16px 16px 4px 16px;
+  }
+  .msg.system {
+    align-self: center;
+    font-size: 12px; color: var(--ink-soft);
+    background: #f4f6ee; border-radius: 999px; padding: 6px 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .msg.system .spinner {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #cddcb8; border-top-color: var(--green-700);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .msg.answer {
+    align-self: flex-start; max-width: 92%;
+    background: #fdfef9;
+    border: 1.5px solid #e0e9cf;
+    border-radius: 4px 16px 16px 16px;
+    padding: 16px 20px 14px;
+    box-shadow: 0 2px 10px rgba(30,86,49,.06);
+  }
+  .answer h3 {
+    font-size: 15px; color: var(--green-900); margin-bottom: 4px;
+  }
+  .answer .section { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #dde5cd; }
+  .answer .section:first-of-type { border-top: none; padding-top: 4px; }
+  .section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .section-head img {
+    width: 26px; height: 26px; object-fit: contain;
+    background: var(--green-100); border-radius: 50%; padding: 2px;
+  }
+  .section-head .t { font-weight: 800; font-size: 13px; }
+  .section-head .by { font-size: 11px; color: var(--ink-soft); }
+  .answer ul { margin: 4px 0 0 18px; }
+  .answer li { margin-bottom: 4px; }
+  .answer .verdict {
+    margin-top: 14px; background: var(--green-100);
+    border-radius: 12px; padding: 12px 14px;
+    font-size: 13px; border: 1px solid #d9e7c3;
+  }
+  .answer .verdict b { color: var(--green-900); }
+
+  /* ── 입력창 ───────────────────────────── */
+  #input-bar {
+    display: flex; gap: 10px; align-items: center;
+    padding: 12px 16px;
+    border-top: 1px solid #edf1e3;
+  }
+  #suggestion {
+    position: absolute; transform: translateY(-46px);
+    font-size: 12px; background: #fff; color: var(--green-700);
+    border: 1.5px solid var(--green-300); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: background .2s;
+  }
+  #suggestion:hover { background: var(--green-100); }
+  #user-input {
+    flex: 1; border: 1.5px solid #dfe6d2; border-radius: 999px;
+    padding: 11px 18px; font-size: 13.5px; outline: none;
+    font-family: inherit;
+    transition: border-color .2s;
+  }
+  #user-input:focus { border-color: var(--green-500); }
+  #send-btn {
+    background: var(--green-700); color: #fff; border: none;
+    border-radius: 999px; padding: 11px 22px;
+    font-size: 13.5px; font-weight: 700; cursor: pointer;
+    font-family: inherit;
+    transition: background .2s;
+  }
+  #send-btn:hover { background: var(--green-900); }
+  #send-btn:disabled { background: #b9c7ac; cursor: default; }
+
+  /* ── 핸드오프(문서 전달) 오버레이 ─────────── */
+  #fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+  .fly-note {
+    position: absolute;
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1.5px solid var(--green-500);
+    border-radius: 10px; padding: 6px 10px;
+    font-size: 11.5px; font-weight: 700; color: var(--green-900);
+    box-shadow: 0 6px 18px rgba(30,86,49,.25);
+    transition: transform 1.1s cubic-bezier(.45,-0.15,.35,1.15), opacity .3s;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">P</div>
+  <div>
+    <h1>신제품 아이디어 연구소</h1>
+    <div class="sub">궁금한 제품 콘셉트를 물어보면, 연구소 친구들이 함께 검토해 드려요</div>
+  </div>
+  <div class="demo-tag">DEMO · 시나리오 재생 모드</div>
+</header>
+
+<main>
+  <!-- 에이전트 스테이지 -->
+  <section id="stage">
+    <div class="agent" id="agent-trend">
+      <div class="bubble"><span class="text idle-text">오늘은 어떤 트렌드가 뜨고 있으려나~ 📰</span></div>
+      <div class="avatar-wrap">
+        <img class="avatar" src="assets/websearch.png" alt="트렌디">
+        <div class="status-dot"></div>
+      </div>
+      <div class="name">트렌디</div>
+      <div class="role">시장조사 · 외부 트렌드 리서치</div>
+      <div class="status-pill">대기 중</div>
+    </div>
+
+    <div class="agent" id="agent-recipe">
+      <div class="bubble"><span class="text idle-text">새 배합 아이디어 실험 중… 🧪</span></div>
+      <div class="avatar-wrap">
+        <img class="avatar" src="assets/recipe.png" alt="배합이">
+        <div class="status-dot"></div>
+      </div>
+      <div class="name">배합이</div>
+      <div class="role">R&D · 사내 배합비 검색/제안</div>
+      <div class="status-pill">대기 중</div>
+    </div>
+
+    <div class="agent" id="agent-comp">
+      <div class="bubble"><span class="text idle-text">규정집은 언제 봐도 재밌다니까 ✅</span></div>
+      <div class="avatar-wrap">
+        <img class="avatar" src="assets/compliance.png" alt="꼼꼼이">
+        <div class="status-dot"></div>
+      </div>
+      <div class="name">꼼꼼이</div>
+      <div class="role">품질/법규 · 표시·광고 검토</div>
+      <div class="status-pill">대기 중</div>
+    </div>
+  </section>
+
+  <!-- 채팅 -->
+  <section id="chat-panel">
+    <div id="messages">
+      <div class="msg answer" style="max-width:70%">
+        안녕하세요! 저희는 신제품 아이디어 연구소예요 🌱<br>
+        제품 콘셉트를 말씀해 주시면 <b>시장 트렌드 → 배합 방향 → 표시·광고 체크</b>까지 한 번에 검토해 드릴게요.
+      </div>
+    </div>
+    <div id="input-bar">
+      <button id="suggestion">💡 저당 그릭요거트 스무디 신제품, 시장성이랑 배합 방향 검토해줘</button>
+      <input id="user-input" type="text" placeholder="검토하고 싶은 제품 아이디어를 입력하세요…" autocomplete="off">
+      <button id="send-btn">보내기</button>
+    </div>
+  </section>
+</main>
+
+<div id="fx-layer"></div>
+
+<script>
+/* =====================================================================
+ * 이벤트 기반 시나리오 플레이어
+ * ---------------------------------------------------------------------
+ * 아래 UI 함수들(setStatus / think / handoff / …)은 전부 "이벤트 1건"을
+ * 화면에 반영하는 단위입니다. 실제 백엔드 연동 시에는 runScenario() 대신
+ * orchestrator harness의 스트리밍 이벤트(SSE/WebSocket)를 받아 같은
+ * 함수를 호출하면 됩니다. (예: {type:"agent_status", agent:"trend", ...})
+ * ===================================================================== */
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const AGENTS = {
+  trend:  { el: $("#agent-trend"),  name: "트렌디", img: "assets/websearch.png",
+            idle: ["오늘은 어떤 트렌드가 뜨고 있으려나~ 📰", "SNS 좀 둘러보고 올게요", "요즘 검색어 순위가 심상치 않은데?"] },
+  recipe: { el: $("#agent-recipe"), name: "배합이", img: "assets/recipe.png",
+            idle: ["새 배합 아이디어 실험 중… 🧪", "이 비율… 뭔가 나올 것 같은데!", "배합비 DB 정리 정리~"] },
+  comp:   { el: $("#agent-comp"),   name: "꼼꼼이", img: "assets/compliance.png",
+            idle: ["규정집은 언제 봐도 재밌다니까 ✅", "오늘도 꼼꼼하게!", "표시기준 개정사항 확인 중…"] },
+};
+
+let busy = false;
+
+/* ── 에이전트 상태/말풍선 ─────────────────────────────── */
+function setStatus(key, status) { // 'idle' | 'working' | 'done'
+  const a = AGENTS[key].el;
+  a.classList.toggle("working", status === "working");
+  a.classList.toggle("done", status === "done");
+  $(".status-pill", a).textContent =
+    status === "working" ? "작업 중…" : status === "done" ? "완료!" : "대기 중";
+}
+
+async function typeInto(key, html, { speed = 26, italic = false } = {}) {
+  const textEl = $(".bubble .text", AGENTS[key].el);
+  textEl.className = "text " + (italic ? "idle-text" : "talk-text");
+  textEl.innerHTML = "";
+  const cur = document.createElement("span");
+  cur.className = "cursor";
+  textEl.after(cur);
+  // 태그를 유지하며 한 글자씩 출력
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  const plain = tmp.textContent;
+  for (let i = 1; i <= plain.length; i++) {
+    let count = i, out = "", node = 0;
+    const walk = (src, dst) => {
+      for (const n of src.childNodes) {
+        if (count <= 0) return;
+        if (n.nodeType === 3) {
+          const take = n.textContent.slice(0, count);
+          dst.appendChild(document.createTextNode(take));
+          count -= take.length;
+        } else {
+          const c = n.cloneNode(false);
+          dst.appendChild(c);
+          walk(n, c);
+        }
+      }
+    };
+    const box = document.createElement("span");
+    walk(tmp, box);
+    textEl.innerHTML = "";
+    textEl.appendChild(box);
+    await sleep(speed);
+  }
+  cur.remove();
+}
+
+/* 생각(혼잣말) vs 대화(다른 에이전트에게) */
+const think = (key, text, opt) => typeInto(key, "🤔 " + text, opt);
+const say   = (key, toKey, text, opt) =>
+  typeInto(key, `<b>@${AGENTS[toKey].name}</b> ${text}`, opt);
+
+/* ── 핸드오프: 문서가 날아가는 연출 ───────────────────── */
+async function handoff(fromKey, toKey, label) {
+  const fx = $("#fx-layer");
+  const from = $(".avatar", AGENTS[fromKey].el).getBoundingClientRect();
+  const to   = $(".avatar", AGENTS[toKey].el).getBoundingClientRect();
+  const note = document.createElement("div");
+  note.className = "fly-note";
+  note.innerHTML = `📄 <span>${label}</span>`;
+  fx.appendChild(note);
+  const start = { x: from.left + from.width / 2, y: from.top + from.height / 2 };
+  const end   = { x: to.left + to.width / 2,     y: to.top + to.height / 2 };
+  note.style.left = "0px"; note.style.top = "0px";
+  note.style.transform = `translate(${start.x - note.offsetWidth / 2}px, ${start.y}px)`;
+  note.getBoundingClientRect(); // reflow
+  note.style.transform = `translate(${end.x - note.offsetWidth / 2}px, ${end.y - 30}px)`;
+  await sleep(1100);
+  note.style.opacity = "0";
+  await sleep(300);
+  note.remove();
+}
+
+/* ── 채팅 메시지 ─────────────────────────────────────── */
+const messages = $("#messages");
+function addMsg(cls, html) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.innerHTML = html;
+  messages.appendChild(d);
+  messages.scrollTop = messages.scrollHeight;
+  return d;
+}
+const sectionHTML = (key, title, body) => `
+  <div class="section">
+    <div class="section-head">
+      <img src="${AGENTS[key].img}" alt="">
+      <span class="t">${title}</span>
+      <span class="by">· ${AGENTS[key].name} 조사</span>
+    </div>
+    ${body}
+  </div>`;
+
+/* ── 데모 시나리오 ───────────────────────────────────── */
+async function runScenario() {
+  const sys = addMsg("system", `<span class="spinner"></span>연구소 친구들이 함께 검토를 시작했어요`);
+
+  /* 1) 트렌디: 시장조사 */
+  setStatus("trend", "working");
+  await think("trend", "먼저 시장부터 볼까? <b>‘저당 그릭요거트’</b> 최근 트렌드 검색 중…");
+  await sleep(900);
+  await think("trend", "검색 결과 41건 분석 중… 헬시플레저·제로슈거 키워드가 눈에 띄네! 📈");
+  await sleep(1100);
+  await say("trend", "recipe", "시장 조사 끝! 핵심은 <b>저당 + 고단백</b>이야. 정리해서 넘길게~");
+  setStatus("trend", "done");
+  await handoff("trend", "recipe", "시장 트렌드 리포트");
+
+  /* 2) 배합이: 사내 배합비 검색 */
+  setStatus("recipe", "working");
+  await think("recipe", "고마워 트렌디! 그럼 사내 배합비 DB에서 <b>그릭요거트 베이스</b> 검색해 볼게 🔍");
+  await sleep(1000);
+  await think("recipe", "유사 배합 3건 발견! 아임리얼 베이스에 <b>당 함량을 낮춘 변형 배합</b>이 가능하겠어");
+  await sleep(1100);
+  await say("recipe", "comp", "배합 방향 나왔어! <b>‘저당’ 표시</b> 붙여도 되는지 확인 부탁해 🙏");
+  setStatus("recipe", "done");
+  await handoff("recipe", "comp", "제안 배합 스펙");
+
+  /* 3) 꼼꼼이: 표시·광고 검토 */
+  setStatus("comp", "working");
+  await think("comp", "받았어! 식품 등의 표시기준에서 <b>‘저당류’ 강조표시 요건</b> 대조 중… 🧐");
+  await sleep(1300);
+  await think("comp", "당류 100g당 5g 이하면 표시 가능. 제안 배합은 <b>충족</b>! 광고 문구 주의사항도 정리했어 ✅");
+  setStatus("comp", "done");
+  await sleep(600);
+
+  /* 4) 종합 답변 */
+  sys.remove();
+  const card = addMsg("answer", `<h3>🌱 ‘저당 그릭요거트 스무디’ 검토 결과</h3>`);
+  const parts = [
+    sectionHTML("trend", "시장 트렌드", `<ul>
+      <li>‘헬시플레저’ 지속 — <b>저당·고단백 발효유</b> 카테고리 성장세</li>
+      <li>그릭요거트 검색량 전년 대비 증가, 음용형(드링커블) 포맷 확산</li>
+      <li>경쟁사 제로슈거 라인 출시 활발 → 차별화 포인트 필요</li></ul>`),
+    sectionHTML("recipe", "배합 방향 제안", `<ul>
+      <li>아임리얼 베이스 활용, 유사 사내 배합 <b>3건</b> 참조 가능</li>
+      <li>당 저감: 정제당 일부를 과일 유래당으로 대체하는 방향</li>
+      <li>단백질 보강으로 ‘고단백’ 소구 병행 검토</li></ul>`),
+    sectionHTML("comp", "표시·광고 체크", `<ul>
+      <li>‘저당’ 강조표시: <b>당류 100g당 5g 이하</b> 요건 충족 가능</li>
+      <li>‘무설탕’ 표현은 요건 상이 — 혼용 주의</li>
+      <li>건강 효능 단정 문구(예: 다이어트에 효과) 사용 불가</li></ul>`),
+  ];
+  for (const html of parts) {
+    card.insertAdjacentHTML("beforeend", html);
+    messages.scrollTop = messages.scrollHeight;
+    await sleep(700);
+  }
+  card.insertAdjacentHTML("beforeend", `
+    <div class="verdict"><b>종합 의견 —</b> 시장성·배합 실현성·규제 요건 모두 긍정적입니다.
+    ‘저당 + 고단백 음용형 그릭요거트’ 콘셉트로 구체화를 추천드려요. 다음 단계로
+    타깃 가격대와 용량 스펙을 검토해 볼까요?</div>`);
+  messages.scrollTop = messages.scrollHeight;
+
+  /* 상태 초기화 */
+  await sleep(2500);
+  for (const k of Object.keys(AGENTS)) setStatus(k, "idle");
+}
+
+/* ── 대기 중 아이들 채터(살아있는 느낌) ────────────────── */
+async function idleChatter() {
+  while (true) {
+    await sleep(4500 + Math.random() * 3000);
+    if (busy) continue;
+    const keys = Object.keys(AGENTS);
+    const k = keys[Math.floor(Math.random() * keys.length)];
+    const lines = AGENTS[k].idle;
+    if (!busy) await typeInto(k, lines[Math.floor(Math.random() * lines.length)], { italic: true, speed: 34 });
+  }
+}
+idleChatter();
+
+/* ── 입력 처리 ───────────────────────────────────────── */
+const input = $("#user-input"), sendBtn = $("#send-btn"), sugg = $("#suggestion");
+async function submit(text) {
+  if (busy || !text.trim()) return;
+  busy = true;
+  sendBtn.disabled = true;
+  sugg.style.display = "none";
+  input.value = "";
+  addMsg("user", text);
+  await runScenario();
+  busy = false;
+  sendBtn.disabled = false;
+}
+sendBtn.addEventListener("click", () => submit(input.value));
+input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(input.value); });
+sugg.addEventListener("click", () => submit(sugg.textContent.replace("💡 ", "")));
+</script>
+</body>
+</html>

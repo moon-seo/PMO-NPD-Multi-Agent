@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아이디어 연구소 — Agent World</title>
+<style>
+  :root {
+    --green-900: #1e5631; --green-700: #2e7d43; --green-500: #6aa84f;
+    --green-300: #a5c964; --green-100: #eef5e3;
+    --ink: #24331f; --ink-soft: #5f7154; --amber: #f6b93b; --red: #d84b3f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: #17301f;
+    display: grid; place-items: center;
+    color: var(--ink);
+  }
+
+  /* ── 월드 컨테이너 (16:10 고정 비율) ── */
+  #frame {
+    position: relative;
+    width: min(100vw, 160vh);
+    aspect-ratio: 16 / 10;
+  }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+  #overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+  /* ── 말풍선 ── */
+  .bubble {
+    position: absolute;
+    max-width: 230px; min-width: 40px;
+    background: #fff;
+    border: 2px solid var(--green-900);
+    border-radius: 12px;
+    padding: 7px 11px;
+    font-size: 12.5px; font-weight: 600; line-height: 1.5;
+    color: var(--ink);
+    transform: translate(-50%, -100%);
+    opacity: 0; transition: opacity .18s;
+    pointer-events: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,.18);
+    white-space: pre-wrap; word-break: keep-all;
+  }
+  .bubble.show { opacity: 1; }
+  .bubble::after {
+    content: ""; position: absolute; left: 50%; bottom: -7px;
+    transform: translateX(-50%) rotate(45deg);
+    width: 11px; height: 11px; background: #fff;
+    border-right: 2px solid var(--green-900); border-bottom: 2px solid var(--green-900);
+  }
+  .bubble b { color: var(--green-700); }
+  .bubble .to { color: #b07d1a; }
+
+  /* ── 상단 타이틀 / 컨트롤 ── */
+  #title-chip {
+    position: absolute; top: 14px; left: 16px;
+    background: rgba(255,255,255,.92); border: 2px solid var(--green-900);
+    border-radius: 12px; padding: 8px 14px;
+    font-size: 13px; font-weight: 800; color: var(--green-900);
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.15);
+  }
+  #title-chip .live {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+    animation: livepulse 1.4s infinite;
+  }
+  @keyframes livepulse { 50% { box-shadow: 0 0 0 5px rgba(216,75,63,.25); opacity: .6; } }
+  #speed-btn {
+    position: absolute; top: 14px; right: 16px;
+    background: rgba(255,255,255,.92); border: 2px solid var(--green-900);
+    border-radius: 12px; padding: 8px 14px;
+    font-size: 12.5px; font-weight: 800; color: var(--green-900);
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 3px 8px rgba(0,0,0,.15);
+  }
+  #speed-btn.on { background: var(--amber); }
+
+  /* ── 업무 로그 티커 ── */
+  #log {
+    position: absolute; left: 16px; bottom: 86px;
+    width: 300px; pointer-events: none;
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 11px; font-weight: 600;
+  }
+  .log-line {
+    background: rgba(23, 48, 31, .78); color: #d7e8c8;
+    border-left: 3px solid var(--green-300);
+    border-radius: 6px; padding: 5px 9px;
+    opacity: 0; animation: login .3s forwards;
+  }
+  @keyframes login { from { opacity: 0; transform: translateY(6px); } to { opacity: .95; transform: none; } }
+
+  /* ── 의뢰 입력 바 ── */
+  #request-bar {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    display: flex; gap: 8px; align-items: center;
+    background: rgba(255,255,255,.95);
+    border: 2px solid var(--green-900); border-radius: 16px;
+    padding: 10px 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    width: min(620px, 84%);
+  }
+  #request-bar .icon { font-size: 18px; }
+  #request-input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 13.5px; font-family: inherit; color: var(--ink);
+  }
+  #request-btn {
+    background: var(--green-700); color: #fff; border: none;
+    border-radius: 10px; padding: 9px 18px;
+    font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+  }
+  #request-btn:hover { background: var(--green-900); }
+  #request-btn:disabled { background: #b9c7ac; cursor: default; }
+  #sugg-chip {
+    position: absolute; left: 50%; bottom: 78px; transform: translateX(-50%);
+    background: #fff; border: 2px dashed var(--green-500); border-radius: 999px;
+    padding: 7px 16px; font-size: 12px; font-weight: 700; color: var(--green-700);
+    cursor: pointer; font-family: inherit; white-space: nowrap;
+    box-shadow: 0 4px 10px rgba(0,0,0,.18);
+  }
+  #sugg-chip:hover { background: var(--green-100); }
+
+  /* ── 에이전트 정보 카드 ── */
+  #info-card {
+    position: absolute; display: none;
+    width: 230px;
+    background: #fff; border: 2px solid var(--green-900); border-radius: 14px;
+    padding: 12px 14px; font-size: 12px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.3);
+    pointer-events: auto; z-index: 5;
+  }
+  #info-card h4 { font-size: 14px; color: var(--green-900); margin-bottom: 2px; }
+  #info-card .role { color: var(--ink-soft); margin-bottom: 8px; }
+  #info-card .row { display: flex; justify-content: space-between; padding: 3px 0; border-top: 1px dashed #e0e8d2; }
+  #info-card .row b { color: var(--green-700); }
+
+  /* ── 최종 보고서 패널 ── */
+  #report {
+    position: absolute; top: 0; right: 0; height: 100%; width: min(460px, 92%);
+    background: linear-gradient(180deg, #fdfcf6, #f7f6ec);
+    border-left: 3px solid var(--green-900);
+    box-shadow: -12px 0 30px rgba(0,0,0,.35);
+    transform: translateX(105%); transition: transform .5s cubic-bezier(.2,.8,.25,1);
+    padding: 26px 26px 20px; overflow-y: auto;
+    pointer-events: auto; z-index: 10;
+  }
+  #report.open { transform: translateX(0); }
+  #report .doc-head {
+    border-bottom: 2.5px solid var(--green-900); padding-bottom: 10px; margin-bottom: 6px;
+  }
+  #report .doc-head .kicker { font-size: 11px; letter-spacing: 2px; color: var(--ink-soft); font-weight: 700; }
+  #report h2 { font-size: 19px; color: var(--green-900); margin-top: 2px; }
+  #report .meta { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
+  #report .section { margin-top: 16px; opacity: 0; transform: translateY(8px); transition: all .45s; }
+  #report .section.in { opacity: 1; transform: none; }
+  #report .section h3 {
+    font-size: 13.5px; color: var(--green-900);
+    display: flex; align-items: center; gap: 7px; margin-bottom: 6px;
+  }
+  #report .section h3 .chip {
+    font-size: 10px; background: var(--green-100); border: 1px solid #d4e3bd;
+    padding: 2px 8px; border-radius: 999px; color: var(--green-700); font-weight: 700;
+  }
+  #report ul { margin-left: 17px; font-size: 12.5px; line-height: 1.75; }
+  #report .verdict {
+    margin-top: 18px; background: var(--green-100); border: 1.5px solid #d4e3bd;
+    border-radius: 12px; padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+    position: relative;
+  }
+  #report .stamp {
+    position: absolute; right: 12px; top: -18px;
+    border: 3px solid var(--red); color: var(--red);
+    font-weight: 900; font-size: 14px; padding: 4px 10px; border-radius: 6px;
+    transform: rotate(-12deg) scale(3); opacity: 0;
+    transition: all .35s cubic-bezier(.3,1.6,.5,1);
+    background: rgba(255,255,255,.85);
+  }
+  #report .stamp.in { transform: rotate(-12deg) scale(1); opacity: 1; }
+  #report-close {
+    margin-top: 18px; width: 100%;
+    background: var(--green-900); color: #fff; border: none; border-radius: 10px;
+    padding: 10px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<div id="frame">
+  <canvas id="world" width="1280" height="800"></canvas>
+  <div id="overlay"></div>
+
+  <div id="title-chip"><span class="live"></span> 아이디어 연구소 · AGENT WORLD</div>
+  <button id="speed-btn">⏩ 2배속</button>
+
+  <div id="log"></div>
+
+  <button id="sugg-chip">💡 저당 그릭요거트 스무디 신제품, 검토 의뢰하기</button>
+  <div id="request-bar">
+    <span class="icon">📋</span>
+    <input id="request-input" placeholder="연구소에 의뢰할 내용을 적어주세요…" autocomplete="off">
+    <button id="request-btn">의뢰하기</button>
+  </div>
+
+  <div id="info-card"></div>
+
+  <div id="report">
+    <div class="doc-head">
+      <div class="kicker">IDEA LAB · FINAL REPORT</div>
+      <h2 id="report-title">신제품 검토 보고서</h2>
+      <div class="meta" id="report-meta"></div>
+    </div>
+    <div id="report-body"></div>
+    <button id="report-close">확인 — 연구소로 돌아가기</button>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+ *  AGENT WORLD — 2D 탑다운 연구소 시뮬레이션
+ *  캐릭터는 캔버스로 그린 플레이스홀더. 스프라이트로 교체하려면
+ *  drawAgent() 안의 벡터 드로잉을 이미지 drawImage()로 바꾸면 됨.
+ *  시나리오는 이벤트 함수(walkTo/speak/workFor/…) 단위라서, 실제
+ *  orchestrator 스트리밍 이벤트를 같은 함수에 매핑하면 라이브 연동 가능.
+ * ===================================================================== */
+const W = 1280, H = 800;
+const canvas = document.getElementById("world");
+const ctx = canvas.getContext("2d");
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+canvas.width = W * dpr; canvas.height = H * dpr;
+ctx.scale(dpr, dpr);
+
+const overlay = document.getElementById("overlay");
+const $ = (s) => document.querySelector(s);
+let timeScale = 1;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms / timeScale));
+
+/* ── 색 ── */
+const C = {
+  floor: "#f4efdf", floorLine: "#e9e2cc", wall: "#2e5d3b", wallDark: "#24492f",
+  rug: "#dce9c4", rugEdge: "#c3d6a2",
+  wood: "#c99e67", woodDark: "#a97f4c", ink: "#1e5631",
+  body: "#a8c95e", bodyDark: "#8fb54a", white: "#ffffff",
+  amber: "#f6b93b", red: "#d84b3f", screen: "#bfe3ff",
+};
+
+/* ── 가구 배치 ── */
+const FURN = {
+  meetingTable: { x: 640, y: 400, r: 78 },
+  frontDesk:    { x: 640, y: 620, w: 230, h: 64 },
+  trendDesk:    { x: 200, y: 210 },
+  recipeBench:  { x: 1010, y: 200 },
+  compShelf:    { x: 1060, y: 470 },
+  coffee:       { x: 150, y: 560 },
+  plants: [ {x: 60, y: 160}, {x: 1220, y: 160}, {x: 60, y: 720}, {x: 1220, y: 720} ],
+};
+
+/* ── 에이전트 ────────────────────────────────────────── */
+function makeAgent(id, name, role, opts) {
+  const b = document.createElement("div");
+  b.className = "bubble";
+  overlay.appendChild(b);
+  return {
+    id, name, role, ...opts,
+    x: opts.hx, y: opts.hy, tx: null, ty: null,
+    dir: 1, walkPhase: 0, state: "idle",
+    working: false, progress: 0, workDur: 0,
+    task: "-", bubbleEl: b, bubbleUntil: 0,
+    _resolveWalk: null, idleTimer: 2000 + Math.random() * 3000,
+  };
+}
+const agents = {
+  director: makeAgent("director", "소장님", "오케스트레이터 · 업무 분배/종합",
+    { hx: 640, hy: 545, sx: 640, sy: 545, size: 1.16, variant: "director",
+      idleLines: ["다들 잘하고 있나~ 👀", "오늘 의뢰가 들어올 때가 됐는데…", "연구소 운영은 체력이지! 흠냐"] }),
+  trend: makeAgent("trend", "트렌디", "시장조사 · 외부 트렌드 리서치",
+    { hx: 208, hy: 285, sx: 208, sy: 285, size: 1, variant: "trend",
+      idleLines: ["요즘 SNS에서 뭐가 뜨지? 📱", "검색 안테나 점검 완료!", "트렌드는 발로 뛰어야 보인다구~"] }),
+  recipe: makeAgent("recipe", "배합이", "R&D · 사내 배합비 검색/제안",
+    { hx: 1010, hy: 278, sx: 1010, sy: 278, size: 1, variant: "recipe",
+      idleLines: ["이 비율로 하면… 오, 느낌 좋아 🧪", "배합비 DB 백업 완료!", "실험은 즐거워~"] }),
+  comp: makeAgent("comp", "꼼꼼이", "품질/법규 · 표시·광고 검토",
+    { hx: 1055, hy: 555, sx: 1055, sy: 555, size: 1, variant: "comp",
+      idleLines: ["규정 개정사항 체크 중 ✅", "서류는 각이 생명!", "오늘도 꼼꼼하게."] }),
+};
+const agentList = Object.values(agents);
+let scenarioRunning = false;
+
+/* ── 이동/작업 프리미티브 ────────────────────────────── */
+function walkTo(a, x, y) {
+  a.tx = x; a.ty = y; a.state = "walk";
+  return new Promise(res => a._resolveWalk = res);
+}
+function workFor(a, ms, taskLabel) {
+  a.working = true; a.progress = 0; a.workDur = ms; a.task = taskLabel || a.task;
+  return new Promise(res => a._resolveWork = res);
+}
+async function speak(a, html, { hold = 1400, type = 26 } = {}) {
+  const el = a.bubbleEl;
+  el.classList.add("show");
+  // 타이핑: 우선 순수 텍스트로 찍고 마지막에 서식 적용
+  const tmp = document.createElement("div"); tmp.innerHTML = html;
+  const plain = tmp.textContent;
+  el.textContent = "";
+  for (let i = 1; i <= plain.length; i++) {
+    el.textContent = plain.slice(0, i);
+    await sleep(type);
+  }
+  el.innerHTML = html;
+  await sleep(hold);
+  el.classList.remove("show");
+  await sleep(180);
+}
+
+/* ── 로그 ── */
+const logBox = $("#log");
+function log(text) {
+  const d = document.createElement("div");
+  d.className = "log-line";
+  d.textContent = new Date().toLocaleTimeString("ko-KR", { hour12: false }) + "  " + text;
+  logBox.appendChild(d);
+  while (logBox.children.length > 6) logBox.firstChild.remove();
+}
+
+/* ── 업데이트 루프 ───────────────────────────────────── */
+let last = performance.now();
+function update(now) {
+  const dt = Math.min((now - last) / 1000, 0.05) * timeScale;
+  last = now;
+
+  for (const a of agentList) {
+    if (a.state === "walk" && a.tx != null) {
+      const dx = a.tx - a.x, dy = a.ty - a.y;
+      const d = Math.hypot(dx, dy);
+      const sp = 150 * dt;
+      if (d < sp) {
+        a.x = a.tx; a.y = a.ty; a.tx = null; a.state = "idle";
+        a.walkPhase = 0;
+        if (a._resolveWalk) { a._resolveWalk(); a._resolveWalk = null; }
+      } else {
+        a.x += dx / d * sp; a.y += dy / d * sp;
+        a.dir = dx >= 0 ? 1 : -1;
+        a.walkPhase += dt * 11;
+      }
+    }
+    if (a.working) {
+      a.progress += (dt * 1000) / a.workDur;
+      if (a.progress >= 1) {
+        a.progress = 1; a.working = false;
+        if (a._resolveWork) { a._resolveWork(); a._resolveWork = null; }
+      }
+    }
+    // 대기 중 자율 행동(어슬렁 + 혼잣말)
+    if (!scenarioRunning && a.state === "idle" && !a.working) {
+      a.idleTimer -= dt * 1000;
+      if (a.idleTimer <= 0) {
+        a.idleTimer = 5000 + Math.random() * 6000;
+        if (Math.random() < 0.45) {
+          const px = a.hx + (Math.random() - 0.5) * 180;
+          const py = a.hy + (Math.random() - 0.5) * 120;
+          walkTo(a, Math.max(70, Math.min(W - 70, px)), Math.max(140, Math.min(H - 130, py)));
+        } else if (Math.random() < 0.55) {
+          speak(a, a.idleLines[Math.floor(Math.random() * a.idleLines.length)], { hold: 1600, type: 30 });
+        } else {
+          walkTo(a, FURN.coffee.x + 46, FURN.coffee.y + 26).then(() => speak(a, "☕ 커피 타임~", { hold: 1200 }));
+        }
+      }
+    }
+  }
+  draw(now / 1000);
+  positionBubbles();
+  requestAnimationFrame(update);
+}
+
+/* ── 렌더링 ─────────────────────────────────────────── */
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+
+function drawRoom(t) {
+  // 바닥
+  ctx.fillStyle = C.floor; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = C.floorLine; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 64) { ctx.beginPath(); ctx.moveTo(x, 96); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 96; y < H; y += 64) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  // 벽 + 창문
+  ctx.fillStyle = C.wall; ctx.fillRect(0, 0, W, 96);
+  ctx.fillStyle = C.wallDark; ctx.fillRect(0, 88, W, 8);
+  for (let i = 0; i < 4; i++) {
+    const wx = 150 + i * 300;
+    ctx.fillStyle = "#bfe0f5"; rr(wx, 18, 130, 56, 8); ctx.fill();
+    ctx.strokeStyle = "#1c3a26"; ctx.lineWidth = 4; rr(wx, 18, 130, 56, 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx + 65, 18); ctx.lineTo(wx + 65, 74); ctx.stroke();
+  }
+  // 러그 + 회의 테이블
+  const m = FURN.meetingTable;
+  ctx.fillStyle = C.rug; ctx.beginPath(); ctx.ellipse(m.x, m.y, m.r + 74, m.r + 48, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = C.rugEdge; ctx.lineWidth = 5; ctx.stroke();
+  ctx.fillStyle = C.woodDark; ctx.beginPath(); ctx.ellipse(m.x, m.y + 8, m.r, m.r * 0.62, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = C.wood; ctx.beginPath(); ctx.ellipse(m.x, m.y, m.r, m.r * 0.62, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(m.x, m.y, 26, 15, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.font = "700 11px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("MTG", m.x, m.y + 4);
+
+  // 접수 데스크
+  const f = FURN.frontDesk;
+  ctx.fillStyle = C.woodDark; rr(f.x - f.w/2, f.y - f.h/2 + 8, f.w, f.h, 12); ctx.fill();
+  ctx.fillStyle = C.wood; rr(f.x - f.w/2, f.y - f.h/2, f.w, f.h, 12); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3.5; rr(f.x - f.w/2, f.y - f.h/2, f.w, f.h, 12); ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.font = "800 13px sans-serif";
+  ctx.fillText("📮 의뢰 접수", f.x, f.y + 5);
+  // 종(bell)
+  ctx.fillStyle = C.amber; ctx.beginPath(); ctx.arc(f.x + 88, f.y - 14, 9, Math.PI, 0); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(f.x + 76, f.y - 14); ctx.lineTo(f.x + 100, f.y - 14); ctx.stroke();
+
+  // 트렌디 스테이션: 모니터 데스크 + 안테나
+  const td = FURN.trendDesk;
+  ctx.fillStyle = C.wood; rr(td.x - 85, td.y - 20, 170, 52, 10); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; rr(td.x - 85, td.y - 20, 170, 52, 10); ctx.stroke();
+  ctx.fillStyle = "#333"; rr(td.x - 48, td.y - 66, 96, 52, 6); ctx.fill();
+  const flick = agents.trend.working ? (Math.sin(t * 12) > 0 ? "#dff1ff" : C.screen) : "#8fb0c4";
+  ctx.fillStyle = flick; rr(td.x - 42, td.y - 60, 84, 40, 4); ctx.fill();
+  if (agents.trend.working) {
+    ctx.fillStyle = "#41708c"; ctx.font = "800 10px monospace";
+    ctx.fillText("SEARCHING" + ".".repeat(1 + Math.floor(t * 2) % 3), td.x, td.y - 37);
+  }
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(td.x + 60, td.y - 20); ctx.lineTo(td.x + 78, td.y - 78); ctx.stroke();
+  ctx.fillStyle = C.red; ctx.beginPath(); ctx.arc(td.x + 78, td.y - 82, agents.trend.working ? 6 + Math.sin(t*8)*2 : 5, 0, 7); ctx.fill();
+
+  // 배합이 스테이션: 실험 벤치 + 플라스크
+  const rb = FURN.recipeBench;
+  ctx.fillStyle = "#e8e4d4"; rr(rb.x - 90, rb.y - 22, 180, 56, 10); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; rr(rb.x - 90, rb.y - 22, 180, 56, 10); ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    const fx = rb.x - 46 + i * 46, fy = rb.y - 26;
+    ctx.fillStyle = ["#cde89a", "#f3d98a", "#bfe3d2"][i];
+    ctx.beginPath(); ctx.moveTo(fx - 11, fy); ctx.lineTo(fx - 4, fy - 22); ctx.lineTo(fx + 4, fy - 22); ctx.lineTo(fx + 11, fy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
+    if (agents.recipe.working) {
+      const bt = (t * 1.6 + i * 0.4) % 1;
+      ctx.fillStyle = "rgba(110,160,80," + (1 - bt) + ")";
+      ctx.beginPath(); ctx.arc(fx, fy - 26 - bt * 26, 3.5 + i, 0, 7); ctx.fill();
+    }
+  }
+
+  // 꼼꼼이 스테이션: 서류 선반 + 데스크
+  const cs = FURN.compShelf;
+  ctx.fillStyle = C.woodDark; rr(cs.x - 70, cs.y - 92, 140, 84, 8); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; rr(cs.x - 70, cs.y - 92, 140, 84, 8); ctx.stroke();
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = ["#e8f0d8", "#f4e6c6", "#dceef2"][ (r + i) % 3 ];
+    ctx.fillRect(cs.x - 60 + i * 24, cs.y - 84 + r * 40, 18, 32);
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.strokeRect(cs.x - 60 + i * 24, cs.y - 84 + r * 40, 18, 32);
+  }
+  ctx.fillStyle = C.wood; rr(cs.x - 65, cs.y + 4, 130, 42, 8); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; rr(cs.x - 65, cs.y + 4, 130, 42, 8); ctx.stroke();
+  if (agents.comp.working) {
+    const ct = (t * 1.4) % 1;
+    ctx.fillStyle = "rgba(46,125,67," + (1 - ct) + ")";
+    ctx.font = "800 " + (13 + ct * 8) + "px sans-serif";
+    ctx.fillText("✓", cs.x + 40, cs.y - ct * 40);
+  }
+
+  // 커피 코너
+  const cf = FURN.coffee;
+  ctx.fillStyle = "#8a6a4a"; rr(cf.x - 40, cf.y - 46, 80, 74, 8); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3; rr(cf.x - 40, cf.y - 46, 80, 74, 8); ctx.stroke();
+  ctx.fillStyle = "#3b2c20"; rr(cf.x - 26, cf.y - 34, 52, 30, 5); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "700 11px sans-serif"; ctx.fillText("COFFEE", cf.x, cf.y + 16);
+  ctx.fillStyle = C.amber; ctx.beginPath(); ctx.arc(cf.x, cf.y - 19, 4, 0, 7); ctx.fill();
+
+  // 화분
+  for (const p of FURN.plants) {
+    ctx.fillStyle = "#b06a3d"; rr(p.x - 16, p.y - 6, 32, 24, 5); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; rr(p.x - 16, p.y - 6, 32, 24, 5); ctx.stroke();
+    ctx.fillStyle = "#5e9c4f";
+    for (const [ox, oy, r] of [[-10, -20, 12], [10, -22, 12], [0, -32, 13]]) {
+      ctx.beginPath(); ctx.arc(p.x + ox, p.y + oy, r, 0, 7); ctx.fill();
+    }
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y - 24, 21, 0, 7); ctx.stroke();
+  }
+}
+
+/* 캐릭터(플레이스홀더 벡터). 스프라이트 교체 지점. */
+function drawAgent(a, t) {
+  const bob = a.state === "walk" ? Math.sin(a.walkPhase) * 4
+            : a.working ? Math.sin(t * 7) * 2.5
+            : Math.sin(t * 2 + a.x) * 1.8;
+  const sq = a.state === "walk" ? 1 + Math.sin(a.walkPhase * 2) * 0.04 : 1;
+  const s = a.size, x = a.x, y = a.y + bob;
+
+  ctx.save();
+  // 그림자
+  ctx.fillStyle = "rgba(30,60,35,.18)";
+  ctx.beginPath(); ctx.ellipse(a.x, a.y + 34 * s, 26 * s, 8 * s, 0, 0, 7); ctx.fill();
+
+  ctx.translate(x, y);
+  ctx.scale(a.dir * s, s * sq);
+
+  // 발
+  const step = a.state === "walk" ? Math.sin(a.walkPhase) * 7 : 0;
+  ctx.fillStyle = "#4c7a3a";
+  ctx.beginPath(); ctx.ellipse(-10 + step, 32, 8, 5, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10 - step, 32, 8, 5, 0, 0, 7); ctx.fill();
+
+  // 몸통
+  ctx.fillStyle = C.body;
+  ctx.beginPath(); ctx.ellipse(0, 0, 30, 32, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3.5; ctx.stroke();
+
+  // 변형(캐릭터별 소품)
+  if (a.variant === "recipe") { // 실험 가운
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.moveTo(-26, -2); ctx.quadraticCurveTo(-30, 22, -14, 28);
+    ctx.lineTo(14, 28); ctx.quadraticCurveTo(30, 22, 26, -2);
+    ctx.quadraticCurveTo(12, 8, 0, 8); ctx.quadraticCurveTo(-12, 8, -26, -2); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  if (a.variant === "comp") { // 넥타이
+    ctx.fillStyle = C.red;
+    ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(6, 12); ctx.lineTo(0, 26); ctx.lineTo(-6, 12); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
+  }
+  if (a.variant === "trend") { // 안경 + 가방끈
+    ctx.strokeStyle = "#a9743f"; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(-24, -8); ctx.lineTo(20, 22); ctx.stroke();
+  }
+  if (a.variant === "director") { // 스카프
+    ctx.fillStyle = C.ink;
+    rr(-16, 4, 32, 9, 4); ctx.fill();
+  }
+
+  // 눈/입
+  ctx.fillStyle = C.ink;
+  const blink = Math.sin(t * 1.3 + a.y) > 0.97 ? 0.15 : 1;
+  ctx.beginPath(); ctx.ellipse(-9, -8, 4, 6 * blink, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9, -8, 4, 6 * blink, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(-8, -10, 1.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(10, -10, 1.5, 0, 7); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.arc(0, 0, 6, 0.25 * Math.PI, 0.75 * Math.PI); ctx.stroke();
+
+  if (a.variant === "trend") { // 안경
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5;
+    ctx.strokeRect(-16, -14, 13, 11); ctx.strokeRect(3, -14, 13, 11);
+    ctx.beginPath(); ctx.moveTo(-3, -9); ctx.lineTo(3, -9); ctx.stroke();
+  }
+
+  // 모자(P캡)
+  ctx.fillStyle = C.ink;
+  ctx.beginPath(); ctx.arc(2, -26, 13, Math.PI * 0.95, Math.PI * 2.02); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "800 10px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("P", 2, -27);
+
+  ctx.restore();
+
+  // 작업 게이지
+  if (a.working) {
+    const gw = 54;
+    ctx.fillStyle = "rgba(255,255,255,.9)";
+    rr(a.x - gw/2, a.y - 62 * s, gw, 8, 4); ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2; rr(a.x - gw/2, a.y - 62 * s, gw, 8, 4); ctx.stroke();
+    ctx.fillStyle = C.amber;
+    if (a.progress > 0.02) { rr(a.x - gw/2 + 1.5, a.y - 62 * s + 1.5, (gw - 3) * a.progress, 5, 3); ctx.fill(); }
+  }
+
+  // 이름표
+  ctx.fillStyle = "rgba(30,86,49,.85)";
+  const nw = ctx.measureText(a.name).width + 18;
+  rr(a.x - nw/2, a.y + 42 * s, nw, 17, 8); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "700 11px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText(a.name, a.x, a.y + 54 * s);
+}
+
+/* 전달 문서(핸드오프) 이펙트 */
+const flyDocs = [];
+async function handDoc(from, to, label) {
+  log(`📄 ${from.name} → ${to.name} : ${label}`);
+  const doc = { x: from.x, y: from.y - 40, tx: to.x, ty: to.y - 40, t: 0, label };
+  flyDocs.push(doc);
+  await sleep(950);
+  flyDocs.splice(flyDocs.indexOf(doc), 1);
+}
+function drawDocs(dt) {
+  for (const d of flyDocs) {
+    d.t = Math.min(1, d.t + dt / 0.9);
+    const px = d.x + (d.tx - d.x) * d.t;
+    const py = d.y + (d.ty - d.y) * d.t - Math.sin(d.t * Math.PI) * 46;
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("📄", px, py);
+    ctx.fillStyle = C.ink; ctx.font = "700 10px sans-serif";
+    ctx.fillText(d.label, px, py + 13);
+  }
+}
+
+let lastDraw = performance.now();
+function draw(t) {
+  const dtd = Math.min((performance.now() - lastDraw) / 1000, 0.05) * timeScale;
+  lastDraw = performance.now();
+  drawRoom(t);
+  for (const a of [...agentList].sort((p, q) => p.y - q.y)) drawAgent(a, t);
+  drawDocs(dtd);
+}
+
+/* 말풍선 위치 동기화(월드 → 화면 좌표) */
+function positionBubbles() {
+  const scale = canvas.clientWidth / W;
+  for (const a of agentList) {
+    a.bubbleEl.style.left = (a.x * scale) + "px";
+    a.bubbleEl.style.top = ((a.y - 66 * a.size) * scale) + "px";
+  }
+}
+
+/* ── 클릭: 에이전트 정보 카드 ────────────────────────── */
+const infoCard = $("#info-card");
+canvas.addEventListener("click", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const wx = (e.clientX - rect.left) / rect.width * W;
+  const wy = (e.clientY - rect.top) / rect.height * H;
+  const hit = agentList.find(a => Math.hypot(a.x - wx, a.y - wy) < 46);
+  if (!hit) { infoCard.style.display = "none"; return; }
+  infoCard.innerHTML = `
+    <h4>${hit.name}</h4><div class="role">${hit.role}</div>
+    <div class="row"><span>상태</span><b>${hit.working ? "작업 중 " + Math.round(hit.progress * 100) + "%" : hit.state === "walk" ? "이동 중" : "대기"}</b></div>
+    <div class="row"><span>현재 업무</span><b>${hit.task}</b></div>`;
+  const scale = canvas.clientWidth / W;
+  infoCard.style.left = Math.min(canvas.clientWidth - 245, hit.x * scale + 30) + "px";
+  infoCard.style.top = Math.max(10, (hit.y - 40) * scale) + "px";
+  infoCard.style.display = "block";
+  clearTimeout(infoCard._t);
+  infoCard._t = setTimeout(() => infoCard.style.display = "none", 3500);
+});
+
+/* ── 시나리오 ───────────────────────────────────────── */
+const M = FURN.meetingTable;
+const seats = {
+  director: { x: M.x, y: M.y - 95 },
+  trend:    { x: M.x - 115, y: M.y + 28 },
+  recipe:   { x: M.x + 115, y: M.y + 28 },
+  comp:     { x: M.x, y: M.y + 96 },
+};
+
+async function runScenario(requestText) {
+  scenarioRunning = true;
+  const { director, trend, recipe, comp } = agents;
+
+  /* 0) 접수 */
+  log("📮 새 의뢰 접수: " + requestText.slice(0, 24) + "…");
+  await walkTo(director, FURN.frontDesk.x, FURN.frontDesk.y - 70);
+  await speak(director, "🔔 딸랑! 새 의뢰가 들어왔군.\n“" + requestText.slice(0, 30) + "…”", { hold: 1700 });
+  await speak(director, "<b>전원 회의 테이블로 집합!</b> 📢", { hold: 1100 });
+
+  /* 1) 킥오프 회의 */
+  await Promise.all([
+    walkTo(director, seats.director.x, seats.director.y),
+    walkTo(trend, seats.trend.x, seats.trend.y),
+    walkTo(recipe, seats.recipe.x, seats.recipe.y),
+    walkTo(comp, seats.comp.x, seats.comp.y),
+  ]);
+  log("🪑 킥오프 회의 시작");
+  await speak(director, "역할 분배할게. <span class='to'>@트렌디</span> 시장 트렌드,\n<span class='to'>@배합이</span> 사내 배합 검토,\n<span class='to'>@꼼꼼이</span> 표시·광고 규정 체크!", { hold: 2100 });
+  director.task = "업무 분배/진행 관리";
+  speak(trend, "맡겨줘! 🔍", { hold: 800 });
+  await sleep(280);
+  speak(recipe, "오케이! 🧪", { hold: 800 });
+  await sleep(280);
+  await speak(comp, "꼼꼼하게 볼게 ✅", { hold: 800 });
+
+  /* 2) 각자 스테이션으로 — 병렬 작업 시작 */
+  const back = Promise.all([
+    walkTo(trend, trend.sx, trend.sy),
+    walkTo(recipe, recipe.sx, recipe.sy),
+    walkTo(comp, comp.sx, comp.sy),
+  ]);
+  walkTo(director, director.sx, director.sy);
+  await back;
+  log("⚙️ 병렬 작업 시작 (3개 에이전트)");
+
+  trend.task = "‘저당 그릭요거트’ 트렌드 검색";
+  recipe.task = "그릭요거트 베이스 배합 탐색";
+  comp.task = "‘저당’ 강조표시 요건 확인";
+
+  /* 트렌디 작업 + 중간 Q&A(에이전트 간 대화) */
+  const trendWork = (async () => {
+    speak(trend, "🤔 ‘저당 그릭요거트’ 최근 1년 검색량부터…", { hold: 1200 });
+    await workFor(trend, 5200, trend.task);
+  })();
+  const recipeWork = (async () => {
+    await sleep(900);
+    speak(recipe, "🤔 사내 DB에서 유사 배합 찾는 중…", { hold: 1200 });
+    await workFor(recipe, 4200, recipe.task);
+    // 중간에 트렌디에게 질문 — 컨텍스트 요청
+    await speak(recipe, "<span class='to'>@트렌디</span> 주 타깃 연령대도 알 수 있을까?", { hold: 1300 });
+    await speak(trend, "<span class='to'>@배합이</span> 검색 데이터상 <b>2030 여성</b>이 핵심!", { hold: 1400 });
+    log("💬 배합이 ↔ 트렌디 : 타깃 정보 공유");
+    await workFor(recipe, 2600, "타깃 반영해 배합 방향 조정");
+  })();
+  const compWork = (async () => {
+    await sleep(1700);
+    speak(comp, "🤔 식품 표시기준 고시부터 펼쳐 보자…", { hold: 1200 });
+    await workFor(comp, 6800, comp.task);
+  })();
+
+  await trendWork;
+  await speak(trend, "시장 조사 완료! 핵심은 <b>저당+고단백</b> 📈", { hold: 1300 });
+  log("✅ 트렌디: 시장조사 완료");
+
+  /* 3) 핸드오프: 트렌디 → 배합이 (직접 걸어가서 전달) */
+  await walkTo(trend, recipe.sx - 75, recipe.sy + 6);
+  await handDoc(trend, recipe, "트렌드 리포트");
+  speak(trend, "<span class='to'>@배합이</span> 리포트 여기! 참고해~", { hold: 1200 });
+  await speak(recipe, "고마워! 바로 반영할게 💪", { hold: 1100 });
+  walkTo(trend, trend.sx, trend.sy);
+
+  await recipeWork;
+  await speak(recipe, "배합 방향 나왔다! 유사 배합 <b>3건</b> 확보 🧪", { hold: 1300 });
+  log("✅ 배합이: 배합 제안 완료");
+
+  /* 4) 핸드오프: 배합이 → 꼼꼼이 */
+  await walkTo(recipe, comp.sx - 80, comp.sy + 4);
+  await handDoc(recipe, comp, "제안 배합 스펙");
+  speak(recipe, "<span class='to'>@꼼꼼이</span> ‘저당’ 표시 가능한지 봐줘!", { hold: 1200 });
+  await speak(comp, "접수! 기준 대조해 볼게 🧐", { hold: 1100 });
+  walkTo(recipe, recipe.sx, recipe.sy);
+
+  await compWork;
+  await workFor(comp, 2400, "제안 배합 ↔ 표시기준 대조");
+  await speak(comp, "확인 끝! <b>당류 5g/100g 이하</b>로 ‘저당’ 표시 가능 ✅", { hold: 1500 });
+  log("✅ 꼼꼼이: 규정 검토 완료");
+
+  /* 5) 종합 회의 → 보고서 */
+  await speak(director, "다들 수고했어! <b>결과 종합 회의</b> 시작~ 📢", { hold: 1300 });
+  await Promise.all([
+    walkTo(director, seats.director.x, seats.director.y),
+    walkTo(trend, seats.trend.x, seats.trend.y),
+    walkTo(recipe, seats.recipe.x, seats.recipe.y),
+    walkTo(comp, seats.comp.x, seats.comp.y),
+  ]);
+  director.task = "최종 보고서 작성";
+  await workFor(director, 2600, director.task);
+  await speak(director, "📋 <b>최종 보고서 완성!</b>", { hold: 900 });
+  log("📋 최종 보고서 발행");
+  showReport(requestText);
+
+  /* 6) 복귀 */
+  for (const a of agentList) { a.task = "-"; walkTo(a, a.sx, a.sy); }
+  scenarioRunning = false;
+}
+
+/* ── 보고서 패널 ────────────────────────────────────── */
+const report = $("#report");
+async function showReport(requestText) {
+  $("#report-meta").textContent =
+    "의뢰: " + requestText + "  ·  " + new Date().toLocaleString("ko-KR");
+  const body = $("#report-body");
+  body.innerHTML = `
+    <div class="section"><h3>📈 시장 트렌드 <span class="chip">트렌디</span></h3>
+      <ul><li>‘헬시플레저’ 지속 — <b>저당·고단백 발효유</b> 카테고리 성장세</li>
+      <li>그릭요거트 검색량 증가, 음용형(드링커블) 포맷 확산</li>
+      <li>핵심 타깃: <b>2030 여성</b> · 경쟁 제로슈거 라인 활발 → 차별화 필요</li></ul></div>
+    <div class="section"><h3>🧪 배합 방향 제안 <span class="chip">배합이</span></h3>
+      <ul><li>아임리얼 베이스 활용, 사내 유사 배합 <b>3건</b> 참조 가능</li>
+      <li>정제당 일부를 과일 유래당으로 대체하는 당 저감 설계</li>
+      <li>단백질 보강으로 ‘고단백’ 소구 병행 검토</li></ul></div>
+    <div class="section"><h3>✅ 표시·광고 체크 <span class="chip">꼼꼼이</span></h3>
+      <ul><li>‘저당’ 강조표시: <b>당류 100g당 5g 이하</b> 요건 충족 가능</li>
+      <li>‘무설탕’ 표현은 별도 요건 — 혼용 주의</li>
+      <li>건강 효능 단정 문구(예: 다이어트 효과) 사용 불가</li></ul></div>
+    <div class="verdict"><span class="stamp">승인 권고</span>
+      <b>종합 의견 —</b> 시장성·배합 실현성·규제 요건 모두 긍정적.
+      ‘저당+고단백 음용형 그릭요거트’ 콘셉트로 구체화를 권고합니다.
+      다음 단계: 타깃 가격대·용량 스펙 검토.</div>`;
+  report.classList.add("open");
+  const secs = body.querySelectorAll(".section, .verdict");
+  for (const s of secs) { await sleep(420); s.classList.add("in"); }
+  await sleep(350);
+  body.querySelector(".stamp").classList.add("in");
+}
+$("#report-close").addEventListener("click", () => report.classList.remove("open"));
+
+/* ── 입력/컨트롤 ────────────────────────────────────── */
+const input = $("#request-input"), btn = $("#request-btn"), chip = $("#sugg-chip");
+async function submit(text) {
+  if (scenarioRunning || !text.trim()) return;
+  btn.disabled = true; chip.style.display = "none"; input.value = "";
+  report.classList.remove("open");
+  await runScenario(text.trim());
+  btn.disabled = false;
+}
+btn.addEventListener("click", () => submit(input.value));
+input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(input.value); });
+chip.addEventListener("click", () => submit("저당 그릭요거트 스무디 신제품 검토"));
+
+$("#speed-btn").addEventListener("click", (e) => {
+  timeScale = timeScale === 1 ? 2 : 1;
+  e.target.classList.toggle("on", timeScale === 2);
+  e.target.textContent = timeScale === 2 ? "▶ 1배속" : "⏩ 2배속";
+});
+
+log("🏢 연구소 오픈 — 에이전트 4명 출근 완료");
+requestAnimationFrame(update);
+</script>
+</body>
+</html>

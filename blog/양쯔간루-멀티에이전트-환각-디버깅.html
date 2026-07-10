@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>검색은 맞았는데 레시피는 틀렸다 — 멀티에이전트 컨텍스트 유실 디버깅기</title>
+
+<style>
+  :root {
+    --bg: #F4F5F8;
+    --surface: #FFFFFF;
+    --surface-2: #EDEFF4;
+    --ink: #1A1D26;
+    --ink-muted: #5B6172;
+    --ink-faint: #8B90A0;
+    --border: #DDE1E9;
+    --border-strong: #C6CBD6;
+    --accent: #C96A1F;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #FBEEE0;
+    --accent-soft-border: #EDCBA0;
+    --bad: #B8392F;
+    --bad-soft: #FBEAE8;
+    --bad-soft-border: #EFC3BE;
+    --good: #1E7A5F;
+    --good-soft: #E7F3EE;
+    --good-soft-border: #BFDFD1;
+    --code-fg: #2A2E3A;
+    --shadow: 0 1px 2px rgba(20, 22, 30, 0.04), 0 8px 24px rgba(20, 22, 30, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13151B;
+      --surface: #1A1D25;
+      --surface-2: #101218;
+      --ink: #E8E9EF;
+      --ink-muted: #9CA1B3;
+      --ink-faint: #6E7285;
+      --border: #2A2E3A;
+      --border-strong: #383D4C;
+      --accent: #E89354;
+      --accent-ink: #17130E;
+      --accent-soft: #2B2013;
+      --accent-soft-border: #4A3620;
+      --bad: #E58077;
+      --bad-soft: #2A1917;
+      --bad-soft-border: #4A2A26;
+      --good: #5FC1A2;
+      --good-soft: #122620;
+      --good-soft-border: #234238;
+      --code-fg: #D7D9E2;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #13151B;
+    --surface: #1A1D25;
+    --surface-2: #101218;
+    --ink: #E8E9EF;
+    --ink-muted: #9CA1B3;
+    --ink-faint: #6E7285;
+    --border: #2A2E3A;
+    --border-strong: #383D4C;
+    --accent: #E89354;
+    --accent-ink: #17130E;
+    --accent-soft: #2B2013;
+    --accent-soft-border: #4A3620;
+    --bad: #E58077;
+    --bad-soft: #2A1917;
+    --bad-soft-border: #4A2A26;
+    --good: #5FC1A2;
+    --good-soft: #122620;
+    --good-soft-border: #234238;
+    --code-fg: #D7D9E2;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  :root[data-theme="light"] {
+    --bg: #F4F5F8;
+    --surface: #FFFFFF;
+    --surface-2: #EDEFF4;
+    --ink: #1A1D26;
+    --ink-muted: #5B6172;
+    --ink-faint: #8B90A0;
+    --border: #DDE1E9;
+    --border-strong: #C6CBD6;
+    --accent: #C96A1F;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #FBEEE0;
+    --accent-soft-border: #EDCBA0;
+    --bad: #B8392F;
+    --bad-soft: #FBEAE8;
+    --bad-soft-border: #EFC3BE;
+    --good: #1E7A5F;
+    --good-soft: #E7F3EE;
+    --good-soft-border: #BFDFD1;
+    --code-fg: #2A2E3A;
+    --shadow: 0 1px 2px rgba(20, 22, 30, 0.04), 0 8px 24px rgba(20, 22, 30, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic",
+      -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 17px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .mono {
+    font-family: "JetBrains Mono", "Cascadia Code", "SF Mono", "D2Coding", ui-monospace,
+      Consolas, monospace;
+  }
+
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 72px 24px 120px;
+  }
+
+  /* ---------- Masthead ---------- */
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .eyebrow::before {
+    content: "";
+    width: 18px;
+    height: 1.5px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1.title {
+    margin: 18px 0 0;
+    font-size: 40px;
+    line-height: 1.28;
+    letter-spacing: -0.01em;
+    font-weight: 800;
+    text-wrap: balance;
+    max-width: 15ch;
+  }
+
+  .dek {
+    margin: 18px 0 0;
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--ink-muted);
+    max-width: 46ch;
+    text-wrap: pretty;
+  }
+
+  .meta {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-size: 13.5px;
+    color: var(--ink-faint);
+  }
+  .meta strong { color: var(--ink-muted); font-weight: 600; }
+  .meta .dot { color: var(--border-strong); }
+
+  /* ---------- Prose ---------- */
+
+  article > section { margin-top: 56px; }
+
+  h2 {
+    font-size: 26px;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+    font-weight: 750;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  h2 .num {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-faint);
+    margin-right: 10px;
+    vertical-align: 2px;
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 32px 0 12px;
+    letter-spacing: -0.003em;
+  }
+
+  p { margin: 16px 0; max-width: 62ch; }
+  p.lead { font-size: 18px; color: var(--ink); }
+
+  ul, ol { margin: 16px 0; padding-left: 22px; max-width: 62ch; }
+  li { margin: 8px 0; }
+  li::marker { color: var(--ink-faint); }
+
+  strong { font-weight: 700; }
+  code.inline {
+    font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    font-size: 0.86em;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05em 0.4em;
+    color: var(--code-fg);
+  }
+
+  hr.rule {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 56px 0 0;
+  }
+
+  /* ---------- TL;DR ---------- */
+
+  .tldr {
+    margin-top: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 24px 26px 26px;
+  }
+  .tldr-head {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+  }
+  .tldr ol { margin: 0; padding-left: 20px; }
+  .tldr li { margin: 10px 0; max-width: 58ch; }
+  .tldr li strong { color: var(--ink); }
+
+  /* ---------- Architecture diagram ---------- */
+
+  .diagram {
+    margin: 28px 0 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px 26px;
+    box-shadow: var(--shadow);
+  }
+  .diagram-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .node {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px;
+    text-align: center;
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--ink);
+    line-height: 1.5;
+    min-width: 128px;
+  }
+  .node.orchestrator {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 700;
+  }
+  .node small { display: block; color: var(--ink-faint); font-weight: 400; margin-top: 2px; font-size: 11px; }
+  .arrow-down {
+    width: 1.5px;
+    height: 26px;
+    background: var(--border-strong);
+    margin: 0 auto;
+    position: relative;
+  }
+  .arrow-down::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -1px;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--border-strong);
+  }
+  .branch {
+    display: flex;
+    justify-content: center;
+    gap: 64px;
+    margin-top: 0;
+  }
+  .branch-col { display: flex; flex-direction: column; align-items: center; }
+  .diagram-caption {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- Trace / code panels ---------- */
+
+  .panel {
+    margin: 20px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .panel-label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-body {
+    padding: 16px 18px 18px;
+    overflow-x: auto;
+  }
+  .panel-body pre {
+    margin: 0;
+    font-family: "JetBrains Mono", "SF Mono", ui-monospace, "D2Coding", monospace;
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--code-fg);
+    white-space: pre;
+  }
+  .panel-body .kr { white-space: pre-wrap; }
+
+  .panel.bad { border-color: var(--bad-soft-border); background: var(--bad-soft); }
+  .panel.bad .panel-label { color: var(--bad); border-bottom-color: var(--bad-soft-border); }
+  .panel.good { border-color: var(--good-soft-border); background: var(--good-soft); }
+  .panel.good .panel-label { color: var(--good); border-bottom-color: var(--good-soft-border); }
+
+  .tag {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .tag.bad { background: var(--bad); color: #fff; }
+  .tag.good { background: var(--good); color: #fff; }
+
+  /* ---------- Compare grid ---------- */
+
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+  @media (max-width: 640px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- Numbered defense layers ---------- */
+
+  .layer {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    margin: 28px 0;
+  }
+  .layer-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 1.5px solid var(--accent-soft-border);
+    color: var(--accent);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .layer-title { font-weight: 700; font-size: 17px; margin: 6px 0 6px; }
+  .layer-why {
+    font-size: 14.5px;
+    color: var(--ink-muted);
+    margin: 10px 0 0;
+    padding-left: 14px;
+    border-left: 2px solid var(--border);
+  }
+
+  /* ---------- Principles list ---------- */
+
+  .principles { margin: 24px 0; display: flex; flex-direction: column; gap: 18px; }
+  .principle {
+    display: grid;
+    grid-template-columns: 3px 1fr;
+    gap: 18px;
+  }
+  .principle-bar { background: var(--accent); border-radius: 2px; }
+  .principle h4 { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+  .principle p { margin: 0; max-width: 58ch; color: var(--ink-muted); font-size: 15.5px; }
+
+  /* ---------- Closing ---------- */
+
+  .closing {
+    margin-top: 64px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+  .closing .sig {
+    margin-top: 18px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header>
+    <span class="eyebrow">Multi-Agent Postmortem</span>
+    <h1 class="title">검색은 맞았는데<br>레시피는 틀렸다</h1>
+    <p class="dek">3-에이전트 오케스트레이션 시스템에서, 아무도 모르는 척하지 않아서 생긴 환각 버그를 추적한 기록.</p>
+    <div class="meta">
+      <span><strong>스택</strong> Amazon Bedrock AgentCore · Lambda · Tavily</span>
+      <span class="dot">·</span>
+      <span><strong>증상</strong> 하위 에이전트 간 컨텍스트 유실</span>
+      <span class="dot">·</span>
+      <span><strong>읽는 시간</strong> 8분</span>
+    </div>
+  </header>
+
+  <div class="tldr">
+    <div class="tldr-head">핵심 요약</div>
+    <ol>
+      <li><strong>대장 에이전트가 검색 에이전트와 레시피 에이전트를 병렬로 호출</strong>했고, 레시피 에이전트는 아무 배경 정보 없이 낯선 트렌드 용어를 받았다.</li>
+      <li>레시피 에이전트는 모른다고 말하는 대신 <strong>그럴듯한 특징을 지어내서</strong> 배합비를 완성했다 — 검색 결과가 화면에 함께 떠 있었는데도.</li>
+      <li>해법은 "검색을 먼저 시키자"가 아니라 <strong>"모르는 걸 모른다고 말할 수밖에 없게 만들자"</strong>였다. tool 스키마, 오케스트레이터 프롬프트, 하위 에이전트 프롬프트 세 군데에 각각 다른 방어선을 심었다.</li>
+    </ol>
+  </div>
+
+  <article>
+
+    <section>
+      <h2><span class="num">01</span>시스템 구조</h2>
+      <p class="lead">풀무원 신제품 아이디어를 위해 만든 시스템은 세 개의 AgentCore harness로 구성된다. 대장 에이전트는 직접 아무 일도 하지 않고, 두 하위 에이전트에게 위임만 한다.</p>
+
+      <div class="diagram">
+        <div class="diagram-row">
+          <div class="node orchestrator">orchestrator_harness<small>tool 2개, 직접 추론 없음</small></div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="branch">
+          <div class="branch-col">
+            <div class="node">call_recipe_agent<small>Lambda → InvokeHarness</small></div>
+            <div class="arrow-down"></div>
+            <div class="node">recipe_researcher_harness<small>내부 배합비 DB 검색</small></div>
+          </div>
+          <div class="branch-col">
+            <div class="node">call_web_search_agent<small>Lambda → InvokeHarness</small></div>
+            <div class="arrow-down"></div>
+            <div class="node">web_search_harness_tavily_kr<small>Tavily 웹 검색</small></div>
+          </div>
+        </div>
+        <p class="diagram-caption">두 하위 에이전트는 서로의 존재를 모른다. 정보가 오가려면 오케스트레이터가 직접 중계해야 한다.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">02</span>증상: 절반만 맞는 답변</h2>
+      <p>테스트 프롬프트는 일부러 고른 것이었다 — <strong>"양쯔간루"</strong>, 2026년 상반기에 SNS에서 갑자기 유행한 홍콩식 망고·포멜로·코코넛밀크 디저트. 학습 데이터에 온전히 반영됐을 가능성이 낮은, 환각을 유도하기 좋은 키워드다.</p>
+      <p>"양쯔간루를 조사하고 신제품을 제안해줘"라는 요청에 오케스트레이터는 두 tool을 사실상 동시에 호출했다.</p>
+
+      <div class="compare">
+        <div class="panel bad">
+          <div class="panel-label">recipe_researcher_harness가 받은 입력 <span class="tag bad">근거 없음</span></div>
+          <div class="panel-body"><pre class="mono">call_recipe_agent(
+  query: "양쯔간루 배합비 짜줘"
+)</pre></div>
+        </div>
+        <div class="panel good">
+          <div class="panel-label">web_search_harness가 받은 입력 <span class="tag good">정확</span></div>
+          <div class="panel-body"><pre class="mono">call_web_search_agent(
+  query: "양쯔간루 뜻 유래 소개"
+)</pre></div>
+        </div>
+      </div>
+
+      <p>검색 에이전트는 제대로 일했다. 1984년 홍콩 레이가든에서 만든 디저트, 망고·코코넛밀크·사고펄·포멜로 구성이라는 정확한 정보를 가져왔다. 문제는 레시피 에이전트였다 — <code class="inline">query</code> 하나 말고는 아무것도 받지 못한 채, "양쯔간루"라는 이름만으로 배합비를 만들어야 했다.</p>
+
+      <div class="panel bad">
+        <div class="panel-label">최종 답변 (신규 배합비 제안 부분) <span class="tag bad">환각</span></div>
+        <div class="panel-body kr mono">레시피 에이전트는 "양쯔간루"를 자기 지식 안에서 그럴듯한 매운 소스·양념류로 오해하고, 실제로는 존재하지 않는 특징(매운맛, 발효 베이스 등)을 근거로 원재료 배합비를 새로 지어냈다. 검색 결과창에는 정답이 떠 있었지만, 레시피 에이전트는 그 결과를 본 적이 없었다.</div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">03</span>원인: 세 가지가 동시에 어긋났다</h2>
+
+      <h3>1) 병렬 tool call에는 데이터가 흐르지 않는다</h3>
+      <p>Claude 같은 모델이 한 턴에서 tool_use 블록 두 개를 동시에 내보내면, 그 둘은 서로의 결과를 알 수 없는 상태로 계획된다. 오케스트레이터가 <code class="inline">call_recipe_agent</code>와 <code class="inline">call_web_search_agent</code>를 같은 턴에 호출했다는 건, 레시피 쪽 문구를 쓰는 시점에 검색 결과가 아직 존재하지 않았다는 뜻이다. "먼저 검색하라"는 규칙이 없으면 병렬 호출이 기본값이 된다 — 그게 더 빠르니까.</p>
+
+      <h3>2) tool 시그니처에 "이미 아는 것"을 실을 자리가 없었다</h3>
+      <p>기존 <code class="inline">call_recipe_agent</code>는 <code class="inline">query</code> 하나만 받았다. 오케스트레이터가 검색 결과를 나중에 알게 되더라도, 그걸 레시피 에이전트에게 넘길 파라미터 자체가 없었던 것이다.</p>
+
+      <h3>3) 하위 에이전트는 확신하도록 설계돼 있었다</h3>
+      <p>레시피 에이전트의 원래 프롬프트는 "사용자가 방향을 정하면 빠르게 배합비로 넘어가라"고만 되어 있었다. 낯선 용어를 만났을 때 "모른다"고 말할 수 있는 명시적 permission이 없었다 — 그리고 언어모델의 기본값은 침묵이 아니라 그럴듯한 답이다.</p>
+    </section>
+
+    <section>
+      <h2><span class="num">04</span>왜 뻔한 해법 두 개는 부족했나</h2>
+
+      <div class="layer">
+        <div class="layer-badge">✕</div>
+        <div>
+          <div class="layer-title">"무조건 검색부터 시키자"</div>
+          <p>모든 배합비 요청 앞에 검색을 강제하면, "저당 사과주스"처럼 모델이 이미 정확히 아는 흔한 카테고리에도 매번 레이턴시와 비용이 붙는다. 이 시스템이 실제로 자주 받을 요청의 다수는 일반 식품 카테고리다 — 그 경로를 느리게 만드는 건 손해다.</p>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-badge">✕</div>
+        <div>
+          <div class="layer-title">"모델의 판단에 맡기자"</div>
+          <p>이게 바로 이번 버그의 원인이었다. 모델은 "양쯔간루"가 낯설다는 걸 스스로 감지하지 못했다 — 오히려 확신을 갖고 틀린 답을 냈다. "네가 모르는 걸 판단해서 검색해라"는 지시는, 판단 능력 자체가 고장 난 지점을 다시 그 판단에 맡기는 순환 논리다.</p>
+        </div>
+      </div>
+
+      <p>필요한 건 "검색 여부"를 모델의 자기 확신에 맡기지 않는 것이다. 대신 <strong>정보가 실제로 흘러갈 수 있는 구조</strong>를 만들고, <strong>확신을 표현하려면 근거를 대야 하는 상황</strong>을 강제하는 쪽으로 방향을 바꿨다.</p>
+    </section>
+
+    <section>
+      <h2><span class="num">05</span>해법: 3중 방어선</h2>
+      <p>세 군데 중 하나만 고쳤다면 다음 트렌드 용어에서 똑같이 무너졌을 것이다. 그래서 서로 독립적으로 작동하는 방어선을 세 겹 심었다.</p>
+
+      <div class="layer">
+        <div class="layer-badge mono">1</div>
+        <div>
+          <div class="layer-title">tool 스키마에 <code class="inline">context</code> 필수 필드 추가</div>
+          <p>빈 깡통을 채우라고 요구하면, 채울 근거가 없다는 사실이 모델 눈에도 보인다.</p>
+          <div class="panel">
+            <div class="panel-label">call_recipe_agent inputSchema (발췌)</div>
+            <div class="panel-body"><pre class="mono">{
+  "query": { "type": "string" },
+  "context": {
+    "type": "string",
+    "description": "이 제품/용어에 대해 알려진
+      배경 정보. 정보가 없으면
+      '사전 정보 없음'이라고 명시."
+  }
+},
+"required": ["query", "context"]</pre></div>
+          </div>
+          <p class="layer-why">단독으로는 못 막는다 — 병렬 호출 시 모델이 context에 지어낸 내용을 채워 넣을 수도 있다. 그래서 아래 2번과 반드시 짝지어야 한다.</p>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-badge mono">2</div>
+        <div>
+          <div class="layer-title">오케스트레이터: 순차 호출을 명시적 규칙으로</div>
+          <p>"고유 명칭·트렌드 용어"를 감지하는 규칙과, 그 경우 검색을 <em>단독으로 먼저</em> 호출하라는 규칙을 시스템 프롬프트에 박아 넣었다.</p>
+          <div class="panel">
+            <div class="panel-label">orchestrator_harness 시스템 프롬프트 (발췌)</div>
+            <div class="panel-body kr mono">고유 명칭·트렌드 용어 처리 (환각 방지)
+
+1. 절대 그 용어의 의미를 스스로 추측하지 마세요.
+2. call_web_search_agent를 단독으로 먼저 호출하세요
+   (call_recipe_agent와 동시에 호출 금지 - 병렬 호출 금지).
+3. 검색 결과를 받은 이후에 call_recipe_agent를 호출하되,
+   context 파라미터에 검색 결과 요약을 반드시 포함하세요.
+4. 일반적으로 잘 알려진 카테고리는 검색 없이 바로
+   호출해도 됩니다.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-badge mono">3</div>
+        <div>
+          <div class="layer-title">레시피 에이전트: 모른다고 말할 권한 부여</div>
+          <p>오케스트레이터가 규칙을 놓치는 경우에 대비한 최후 방어선. 이건 라우팅과 무관하게 항상 작동한다.</p>
+          <div class="panel">
+            <div class="panel-label">recipe_researcher_harness 시스템 프롬프트 (발췌)</div>
+            <div class="panel-body kr mono">모르는 용어·트렌드 제품 처리 (환각 방지)
+
+[배경 정보] 없이 낯선 고유 명칭이 왔고 스스로 확신할
+수 없다면:
+- 배합비를 절대 추측해서 만들지 마세요.
+- "'[용어]'가 정확히 어떤 제품인지 설명해주시거나,
+   시장조사 결과를 알려주시면 그것을 기반으로
+   배합비를 제안하겠습니다"라고 되물으세요.
+- 확신이 서지 않는데 아는 척하는 것이 틀린 정보를
+   주는 것보다 항상 더 위험한 실수입니다.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">06</span>검증: 같은 질문, 다른 순서</h2>
+      <p>같은 "양쯔간루" 프롬프트를 다시 넣었다. 이번엔 tool 호출 순서 자체가 달라졌다.</p>
+
+      <div class="panel good">
+        <div class="panel-label">수정 후 tool 호출 로그 <span class="tag good">순차 실행</span></div>
+        <div class="panel-body"><pre class="mono">1  call_web_search_agent(query: "양쯔간루...")
+2  call_web_search_agent(query: "양쯔간루...")   ← 재시도
+3  call_recipe_agent(
+     query: "양쯔간루를 활용한 신제품 배합비",
+     context: "1984년 홍콩 레이가든에서 개발된
+       디저트. 망고, 코코넛밀크, 사고펄,
+       포멜로(자몽류)로 구성..."
+   )</pre></div>
+      </div>
+
+      <p>레시피 에이전트가 마침내 받은 <code class="inline">context</code>는 정확했고, 그 결과 최종 제안 세 가지 — 떠먹는 디저트, RTD 음료, 비건 볼 — 모두 실제 양쯔간루의 구성 요소(망고·코코넛·포멜로·사고펄)를 정확히 반영했다. 검색 파트와 배합비 파트가 처음으로 같은 사실 위에서 있었다.</p>
+    </section>
+
+    <section>
+      <h2><span class="num">07</span>일반화되는 교훈</h2>
+
+      <div class="principles">
+        <div class="principle">
+          <div class="principle-bar"></div>
+          <div>
+            <h4>tool signature는 "무엇을 시키는가"뿐 아니라 "무엇을 이미 아는가"도 실어야 한다</h4>
+            <p><code class="inline">query</code> 하나로 끝나는 tool은 편해 보이지만, 에이전트 사이에 사실이 전달될 통로 자체를 막아버린다. 근거를 담을 필드가 없으면, 모델은 근거 없이 답한다.</p>
+          </div>
+        </div>
+        <div class="principle">
+          <div class="principle-bar"></div>
+          <div>
+            <h4>병렬 tool call은 "서로 독립적"이라는 가정을 암묵적으로 강제한다</h4>
+            <p>속도를 위해 병렬 호출은 기본값으로 두되, 실제로 의존 관계가 있는 호출은 예외로 명시해야 한다. 이 예외를 모델의 판단에 맡기면, 모델이 오판하는 바로 그 지점에서 시스템도 함께 무너진다.</p>
+          </div>
+        </div>
+        <div class="principle">
+          <div class="principle-bar"></div>
+          <div>
+            <h4>"모른다"는 답도 permission이 필요하다</h4>
+            <p>언어모델의 기본 동작은 침묵이 아니라 그럴듯한 문장이다. 불확실성을 인정하는 것이 시스템 프롬프트에 명시적으로 허용되지 않으면, 모델은 거의 항상 아는 척을 택한다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </article>
+
+  <div class="closing">
+    <p>세 가지 방어선 중 어느 하나도 완벽하지 않다. tool 스키마는 병렬 호출 자체를 막지 못하고, 프롬프트 규칙은 지시일 뿐 보장이 아니고, 사후 방어선은 이미 잘못된 요청을 받은 뒤의 최소한의 안전장치다. 그래도 세 겹을 겹치면, 하나가 새는 지점을 다른 하나가 잡아준다 — 지금까지는.</p>
+    <div class="sig">recipe_researcher_harness · web_search_harness_tavily_kr · orchestrator_harness — ap-northeast-2</div>
+  </div>
+
+</div>
+</body>
+</html>
